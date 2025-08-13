@@ -1,0 +1,10 @@
+[project]
+name = "smartstore-chatbot"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+extend-select = ["E501"]
