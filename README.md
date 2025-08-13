@@ -2,7 +2,7 @@
 
 ## TODO
 - [x] repo 초기화
-- [ ] 가상 환경 설정, requirements.txt 생성
+- [x] 가상 환경 설정, requirements.txt 생성
 - [ ] 데이터 로드 및 분석
 - [ ] 벡터 DB 구축
 - [ ] RAG 로직 구현 및 평가
