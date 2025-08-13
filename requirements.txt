@@ -1,0 +1,11 @@
+chromadb==1.0.16
+fastapi==0.116.1
+httptools==0.6.4
+openai==1.99.9
+pip==25.1
+python-dotenv==1.1.1
+setuptools==78.1.1
+uvloop==0.21.0
+watchfiles==1.1.0
+websockets==15.0.1
+wheel==0.45.1
