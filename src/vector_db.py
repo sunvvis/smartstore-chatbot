@@ -5,7 +5,7 @@ from chromadb.config import Settings
 from openai import OpenAI
 import time
 
-from utils import get_api_key
+from .utils import get_api_key
 
 
 class VectorDB:
@@ -186,10 +186,10 @@ if __name__ == "__main__":
         db = VectorDB(api_key)
 
         # 벡터 DB 구축
-        db.build("./data/cleaned_result.pkl")
+        # db.build("./data/cleaned_result.pkl")
 
         # 검색 테스트
-        results = db.search("회원가입 방법", top_k=3)
+        results = db.search("미성년자도 판매 회원 등록이 가능한가요?", top_k=5)
         print(f"검색 결과: {len(results)}개")
         for i, result in enumerate(results, 1):
             print(f"{i}. {result['question']}")
