@@ -113,7 +113,7 @@ class TestSmartStoreRAG:
         # 정보 부족 응답 확인
         answer_chunks = [c for c in chunks if c["type"] == "answer"]
         assert len(answer_chunks) > 0
-        assert "찾지 못했습니다" in answer_chunks[0]["content"]
+        assert "스마트 스토어에 대한 질문" in answer_chunks[0]["content"]
 
     def test_stream_response_low_similarity(self, rag_system):
         """낮은 유사도일 때 테스트"""
@@ -127,7 +127,19 @@ class TestSmartStoreRAG:
         # 정보 부족 응답 확인
         answer_chunks = [c for c in chunks if c["type"] == "answer"]
         assert len(answer_chunks) > 0
-        assert "찾지 못했습니다" in answer_chunks[0]["content"]
+
+    def test_no_relevant_sources(self, rag_system):
+        """유사도 낮은 질문 처리 테스트"""
+        # 낮은 유사도 검색 결과 설정
+        rag_system.vector_db.search.return_value = [
+            {"question": "무관한 질문", "answer": "무관한 답변", "similarity_score": 0.05}
+        ]
+
+        chunks = list(rag_system.stream_response("파스타 요리법", similarity_threshold=0.1))
+
+        answer_chunks = [c for c in chunks if c["type"] == "answer"]
+        assert len(answer_chunks) > 0
+        assert "스마트 스토어에 대한 질문" in answer_chunks[0]["content"]
 
     @patch("builtins.print")
     def test_stream_response_openai_error(self, mock_print, rag_system):

@@ -55,7 +55,7 @@ class SmartStoreRAG:
 
         return "\n\n".join(prompt_parts)
 
-    def stream_response(self, question: str, top_k: int = 5, similarity_threshold: float = 0.1) -> Iterator[Dict]:
+    def stream_response(self, question: str, top_k: int = 3, similarity_threshold: float = 0.1) -> Iterator[Dict]:
         """스트리밍 응답 생성"""
 
         # 1. 상태 전송
@@ -70,13 +70,19 @@ class SmartStoreRAG:
             result for result in search_results if result.get("similarity_score", 0) >= similarity_threshold
         ]
 
-        # 4. 컨텍스트 없을 때
+        # 4. 주제 외 질문 처리 (임베딩 유사도 기반)
         if not relevant_sources:
-            yield {"type": "answer", "content": "해당 질문에 대한 정보를 찾지 못했습니다. 다시 질문해주세요."}
-            yield {"type": "sources", "data": search_results}
+            yield {
+                "type": "answer",
+                "content": "저는 스마트 스토어 FAQ를 위한 챗봇입니다. 스마트 스토어에 대한 질문을 부탁드립니다.",
+            }
+            yield {"type": "sources", "data": search_results[:3]}
             return
 
-        # 5. 스트리밍 LLM 응답
+        # 5. 검색 결과 표시
+        yield {"type": "search_results", "data": relevant_sources}
+
+        # 6. 스트리밍 LLM 응답
         yield {"type": "status", "message": "답변 생성 중..."}
 
         try:
@@ -99,11 +105,12 @@ class SmartStoreRAG:
         except Exception as e:
             print(f"스트리밍 응답 오류: {e}")
             yield {"type": "answer", "content": relevant_sources[0]["answer"]}
+            full_answer = relevant_sources[0]["answer"]
 
-        # 6. 대화 기록 저장
+        # 7. 대화 기록 저장
         self.memory.add_turn(question, full_answer, relevant_sources)
 
-        # 7. 검색 소스 정보
+        # 8. 검색 소스 정보
         yield {"type": "sources", "data": relevant_sources}
 
 
