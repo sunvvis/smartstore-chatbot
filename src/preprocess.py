@@ -1,6 +1,7 @@
 import pickle
 from typing import List, Dict
 import re
+import pandas as pd
 
 
 def load_faq_data(file_path: str) -> List[Dict[str, str]]:
@@ -36,3 +37,20 @@ def clean_answer(answer: str) -> str:
     clean_text = re.sub(r"\xa0|\u200b|\ufeff", " ", clean_text)
     clean_text = re.sub(r"\s+", " ", clean_text).strip()
     return clean_text
+
+
+def preprocess_faq(input_path: str, output_path: str) -> None:
+    """통합 전처리 및 저장"""
+    data = load_faq_data(input_path)
+    df = pd.DataFrame(data)
+
+    # 전처리 적용
+    df[["category", "question"]] = df["question"].apply(lambda x: pd.Series(extract_category(x)))
+    df["related_keywords"] = df["answer"].apply(extract_related_keywords)
+    df["answer"] = df["answer"].apply(clean_answer)
+
+    # 저장
+    df.to_pickle(output_path)
+    print(f"전처리 완료, 저장: {output_path}")
+    print(f"정제된 FAQ 수: {len(df)}")
+    print(f"샘플 데이터: {df.iloc[0].to_dict()}")

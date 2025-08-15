@@ -1,7 +1,8 @@
 import pytest
-from src.preprocess import load_faq_data, extract_category, extract_related_keywords, clean_answer
+from src.preprocess import load_faq_data, extract_category, extract_related_keywords, clean_answer, preprocess_faq
 import pickle
 from tempfile import NamedTemporaryFile
+import pandas as pd
 
 
 @pytest.fixture
@@ -56,3 +57,21 @@ def test_clean_answer():
     assert clean_answer("") == ""
     assert clean_answer("\xa0\u200b") == ""
     assert clean_answer("테스트\n\n위 도움말이 도움이 되었나요?") == "테스트"
+
+
+def test_preprocess_faq(mock_pickle_file, tmp_path):
+    """preprocess_faq: 통합 전처리 및 저장 테스트."""
+    output_file = tmp_path / "cleaned_faqs.pkl"
+    preprocess_faq(mock_pickle_file, str(output_file))
+
+    # 출력 파일 확인
+    assert output_file.exists(), "출력 파일 생성 안 됨"
+    df = pd.read_pickle(str(output_file))
+    assert len(df) == 2, "FAQ 개수 불일치"
+    assert df["question"].iloc[0] == "스마트스토어센터 회원가입은 어떻게 하나요? (ID만들기)", "질문 정제 실패"
+    assert (
+        df["answer"].iloc[0]
+        == "네이버 커머스 ID 하나로 스마트스토어센터와 같은 네이버의 다양한 커머스 서비스를 편리하게 이용하실 수 있습니다."
+    ), "답변 정제 실패"
+    assert df["category"].iloc[0] == ["가입절차"], "카테고리 추출 실패"
+    assert df["related_keywords"].iloc[0] == [], "키워드 추출 실패"
