@@ -54,3 +54,14 @@ def preprocess_faq(input_path: str, output_path: str) -> None:
     print(f"전처리 완료, 저장: {output_path}")
     print(f"정제된 FAQ 수: {len(df)}")
     print(f"샘플 데이터: {df.iloc[0].to_dict()}")
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="FAQ 데이터 전처리")
+    parser.add_argument("--input", default="./data/final_result.pkl", help="입력 pickle 파일 경로")
+    parser.add_argument("--output", default="./data/cleaned_result.pkl", help="출력 pickle 파일 경로")
+    args = parser.parse_args()
+
+    preprocess_faq(args.input, args.output)
