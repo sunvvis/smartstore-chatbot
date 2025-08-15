@@ -38,24 +38,34 @@ def mock_openai_client():
 
 
 @pytest.fixture
-def rag_system(mock_vector_db, mock_openai_client):
+def mock_memory():
+    """ConversationMemory 모킹"""
+    mock_mem = Mock()
+    mock_mem.get_recent_context.return_value = ""
+    mock_mem.add_turn.return_value = None
+    return mock_mem
+
+
+@pytest.fixture
+def rag_system(mock_vector_db, mock_openai_client, mock_memory):
     """RAG 시스템 인스턴스"""
     with patch("src.rag.OpenAI", return_value=mock_openai_client):
-        rag = SmartStoreRAG("test_api_key", vector_db=mock_vector_db)
+        rag = SmartStoreRAG("test_api_key", vector_db=mock_vector_db, memory=mock_memory)
         return rag
 
 
 class TestSmartStoreRAG:
     """SmartStoreRAG 테스트"""
 
-    def test_init(self, mock_vector_db):
+    def test_init(self, mock_vector_db, mock_memory):
         """초기화 테스트"""
         with patch("src.rag.OpenAI") as mock_openai:
-            rag = SmartStoreRAG("test_key", vector_db=mock_vector_db)
+            rag = SmartStoreRAG("test_key", vector_db=mock_vector_db, memory=mock_memory)
 
             assert rag.model == "gpt-4o-mini"
             assert rag.temperature == 0.1
             assert rag.vector_db == mock_vector_db
+            assert rag.memory == mock_memory
             mock_openai.assert_called_once_with(api_key="test_key")
 
     def test_create_system_prompt(self, rag_system):
@@ -69,12 +79,13 @@ class TestSmartStoreRAG:
     def test_create_user_prompt(self, rag_system):
         """사용자 프롬프트 생성 테스트"""
         sources = [{"question": "Q1", "answer": "A1"}, {"question": "Q2", "answer": "A2"}]
-        prompt = rag_system._create_user_prompt("테스트 질문", sources)
+        prompt = rag_system._create_user_prompt("테스트 질문", sources, "이전 대화 내용")
 
         assert "관련 FAQ:" in prompt
         assert "테스트 질문" in prompt
         assert "Q1" in prompt
         assert "A1" in prompt
+        assert "이전 대화:" in prompt
 
     def test_stream_response_normal(self, rag_system):
         """정상 스트리밍 응답 테스트"""
@@ -88,6 +99,9 @@ class TestSmartStoreRAG:
 
         # 벡터 검색 호출 확인
         rag_system.vector_db.search.assert_called_once()
+        # 메모리 호출 확인
+        rag_system.memory.get_recent_context.assert_called_once()
+        rag_system.memory.add_turn.assert_called_once()
 
     def test_stream_response_no_sources(self, rag_system):
         """관련 소스 없을 때 테스트"""
@@ -99,7 +113,7 @@ class TestSmartStoreRAG:
         # 정보 부족 응답 확인
         answer_chunks = [c for c in chunks if c["type"] == "answer"]
         assert len(answer_chunks) > 0
-        assert "찾지 못했습니다" in answer_chunks[0]["content"]
+        assert "스마트 스토어에 대한 질문" in answer_chunks[0]["content"]
 
     def test_stream_response_low_similarity(self, rag_system):
         """낮은 유사도일 때 테스트"""
@@ -113,7 +127,64 @@ class TestSmartStoreRAG:
         # 정보 부족 응답 확인
         answer_chunks = [c for c in chunks if c["type"] == "answer"]
         assert len(answer_chunks) > 0
-        assert "찾지 못했습니다" in answer_chunks[0]["content"]
+
+    def test_no_relevant_sources(self, rag_system):
+        """유사도 낮은 질문 처리 테스트"""
+        # 낮은 유사도 검색 결과 설정
+        rag_system.vector_db.search.return_value = [
+            {"question": "무관한 질문", "answer": "무관한 답변", "similarity_score": 0.05}
+        ]
+
+        chunks = list(rag_system.stream_response("파스타 요리법", similarity_threshold=0.1))
+
+        answer_chunks = [c for c in chunks if c["type"] == "answer"]
+        assert len(answer_chunks) > 0
+        assert "스마트 스토어에 대한 질문" in answer_chunks[0]["content"]
+
+    def test_follow_up_questions_with_related_keywords(self, rag_system):
+        """관련 키워드 기반 후속 질문 제안 테스트"""
+        # 1위 질문에 related_keywords 설정
+        rag_system.vector_db.search.return_value = [
+            {
+                "question": "상품 등록",
+                "answer": "...",
+                "similarity_score": 0.8,
+                "related_keywords": ["상품 수정", "상품 삭제"],
+            }
+        ]
+
+        # LLM 모킹
+        mock_choice = Mock()
+        mock_choice.message.content = "상품 수정 방법\n상품 삭제 방법"
+        mock_response = Mock()
+        mock_response.choices = [mock_choice]
+        rag_system.openai_client.chat.completions.create.return_value = mock_response
+
+        chunks = list(rag_system.stream_response("상품 등록 방법"))
+
+        follow_up = [c for c in chunks if c["type"] == "follow_up_questions"][0]
+        assert len(follow_up["data"]["questions"]) > 0
+        assert follow_up["data"]["source"] == "related_keywords"
+
+    def test_follow_up_questions_similarity_based(self, rag_system):
+        """유사도 기반 후속 질문 제안 테스트"""
+        # related_keywords 없는 결과 설정
+        rag_system.vector_db.search.return_value = [
+            {"question": "주문 관리", "answer": "...", "similarity_score": 0.7},
+            {"question": "배송 조회", "answer": "...", "similarity_score": 0.6},
+        ]
+
+        # LLM 모킹
+        mock_choice = Mock()
+        mock_choice.message.content = "주문 관리 방법\n배송 조회 방법"
+        mock_response = Mock()
+        mock_response.choices = [mock_choice]
+        rag_system.openai_client.chat.completions.create.return_value = mock_response
+
+        chunks = list(rag_system.stream_response("주문 방법"))
+
+        follow_up = [c for c in chunks if c["type"] == "follow_up_questions"][0]
+        assert follow_up["data"]["source"] == "similarity"
 
     @patch("builtins.print")
     def test_stream_response_openai_error(self, mock_print, rag_system):
