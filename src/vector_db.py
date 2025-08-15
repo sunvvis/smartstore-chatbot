@@ -189,7 +189,7 @@ if __name__ == "__main__":
         # db.build("./data/cleaned_result.pkl")
 
         # 검색 테스트
-        results = db.search("미성년자도 판매 회원 등록이 가능한가요?", top_k=5)
+        results = db.search("미성년자도 판매 회원 등록이 가능한가요?", top_k=3)
         print(f"검색 결과: {len(results)}개")
         for i, result in enumerate(results, 1):
             print(f"{i}. {result['question']}")

@@ -15,7 +15,7 @@ class TestConversationMemory:
 
         # 기본값 테스트
         default_memory = ConversationMemory()
-        assert default_memory.max_turns == 5
+        assert default_memory.max_turns == 3
 
     def test_add_turn(self):
         """대화 턴 추가 테스트"""

@@ -5,7 +5,7 @@ from datetime import datetime
 class ConversationMemory:
     """간단한 대화 메모리 시스템 - 단일 사용자용"""
 
-    def __init__(self, max_turns: int = 5):
+    def __init__(self, max_turns: int = 3):
         """메모리 시스템 초기화
 
         Args:
