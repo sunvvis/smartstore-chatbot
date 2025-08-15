@@ -55,6 +55,44 @@ class SmartStoreRAG:
 
         return "\n\n".join(prompt_parts)
 
+    def _generate_follow_up_questions(self, relevant_sources: List[Dict], all_results: List[Dict]) -> Dict[str, any]:
+        """후속 질문 제안 생성 (출처 정보 포함)"""
+        # 1. 유사도 1위 질문의 related_keywords 기반 제안
+        if relevant_sources and relevant_sources[0].get("related_keywords"):
+            keyword_candidates = relevant_sources[0]["related_keywords"]
+            refined = self._refine_questions_with_llm(keyword_candidates[:3])
+            return {"questions": refined, "source": "related_keywords"}
+
+        # 2. 유사도 기반 제안
+        similarity_candidates = [r["question"] for r in all_results[:2] if r.get("question")]
+        if similarity_candidates:
+            refined = self._refine_questions_with_llm(similarity_candidates)
+            return {"questions": refined, "source": "similarity"}
+
+        return {"questions": [], "source": "none"}
+
+    def _refine_questions_with_llm(self, raw_questions: List[str]) -> List[str]:
+        """원본 질문들을 LLM으로 정제"""
+        if not raw_questions:
+            return []
+
+        prompt = f"""스마트스토어 질문을 자연스럽게 정제:
+{", ".join(raw_questions)}
+
+요구: 자연스럽고 완전한 질문, 중복 제거, 각 줄에 한 개씩"""
+
+        try:
+            response = self.openai_client.chat.completions.create(
+                model=self.model, messages=[{"role": "user", "content": prompt}], temperature=0.3, max_tokens=200
+            )
+
+            result = response.choices[0].message.content.strip()
+            questions = [q.lstrip("0123456789.- •").strip() for q in result.split("\n") if q.strip()]
+            return [q for q in questions if len(q) > 5][:3]
+
+        except Exception:
+            return raw_questions[:2]
+
     def stream_response(self, question: str, top_k: int = 3, similarity_threshold: float = 0.1) -> Iterator[Dict]:
         """스트리밍 응답 생성"""
 
@@ -112,6 +150,11 @@ class SmartStoreRAG:
 
         # 8. 검색 소스 정보
         yield {"type": "sources", "data": relevant_sources}
+
+        # 9. 후속 질문 제안
+        follow_up_data = self._generate_follow_up_questions(relevant_sources, search_results)
+        if follow_up_data["questions"]:
+            yield {"type": "follow_up_questions", "data": follow_up_data}
 
 
 if __name__ == "__main__":
@@ -179,6 +222,13 @@ if __name__ == "__main__":
                     for i, source in enumerate(chunk["data"], 1):
                         similarity = source.get("similarity_score", 0)
                         print(f"  {i}. {source['question']} (유사도: {similarity:.3f})")
+
+                elif chunk_type == "follow_up_questions":
+                    data = chunk["data"]
+                    source_text = "(관련 키워드)" if data["source"] == "related_keywords" else "(유사도 기반)"
+                    print(f"\n\n[추천 질문 {len(data['questions'])}개 {source_text}]")
+                    for i, question in enumerate(data["questions"], 1):
+                        print(f"  {i}. {question}")
 
             conversation_count += 1
 

@@ -141,6 +141,51 @@ class TestSmartStoreRAG:
         assert len(answer_chunks) > 0
         assert "스마트 스토어에 대한 질문" in answer_chunks[0]["content"]
 
+    def test_follow_up_questions_with_related_keywords(self, rag_system):
+        """관련 키워드 기반 후속 질문 제안 테스트"""
+        # 1위 질문에 related_keywords 설정
+        rag_system.vector_db.search.return_value = [
+            {
+                "question": "상품 등록",
+                "answer": "...",
+                "similarity_score": 0.8,
+                "related_keywords": ["상품 수정", "상품 삭제"],
+            }
+        ]
+
+        # LLM 모킹
+        mock_choice = Mock()
+        mock_choice.message.content = "상품 수정 방법\n상품 삭제 방법"
+        mock_response = Mock()
+        mock_response.choices = [mock_choice]
+        rag_system.openai_client.chat.completions.create.return_value = mock_response
+
+        chunks = list(rag_system.stream_response("상품 등록 방법"))
+
+        follow_up = [c for c in chunks if c["type"] == "follow_up_questions"][0]
+        assert len(follow_up["data"]["questions"]) > 0
+        assert follow_up["data"]["source"] == "related_keywords"
+
+    def test_follow_up_questions_similarity_based(self, rag_system):
+        """유사도 기반 후속 질문 제안 테스트"""
+        # related_keywords 없는 결과 설정
+        rag_system.vector_db.search.return_value = [
+            {"question": "주문 관리", "answer": "...", "similarity_score": 0.7},
+            {"question": "배송 조회", "answer": "...", "similarity_score": 0.6},
+        ]
+
+        # LLM 모킹
+        mock_choice = Mock()
+        mock_choice.message.content = "주문 관리 방법\n배송 조회 방법"
+        mock_response = Mock()
+        mock_response.choices = [mock_choice]
+        rag_system.openai_client.chat.completions.create.return_value = mock_response
+
+        chunks = list(rag_system.stream_response("주문 방법"))
+
+        follow_up = [c for c in chunks if c["type"] == "follow_up_questions"][0]
+        assert follow_up["data"]["source"] == "similarity"
+
     @patch("builtins.print")
     def test_stream_response_openai_error(self, mock_print, rag_system):
         """OpenAI API 오류 시 폴백 테스트"""
