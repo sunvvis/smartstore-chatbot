@@ -185,7 +185,7 @@ if __name__ == "__main__":
         api_key = get_api_key()
         db = VectorDB(api_key)
 
-        # 벡터 DB 구축
+        # 벡터 DB 구축 (첫 실행시 주석 해제)
         # db.build("./data/cleaned_result.pkl")
 
         # 검색 테스트
