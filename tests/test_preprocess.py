@@ -1,5 +1,5 @@
 import pytest
-from src.preprocess import load_faq_data, extract_category
+from src.preprocess import load_faq_data, extract_category, extract_related_keywords, clean_answer
 import pickle
 from tempfile import NamedTemporaryFile
 
@@ -34,3 +34,25 @@ def test_extract_category():
     assert extract_category(sample_input) == expected_output
     assert extract_category("[카테고리] 질문") == (["카테고리"], "질문")
     assert extract_category("질문만") == ([], "질문만")
+
+
+def test_extract_related_keywords():
+    """extract_related_keywords: 관련 질문 추출"""
+    sample_input = "\n관련 도움말/키워드\n\n스마트스토어 로그인ID(매니저)를 추가하거나 변경할 수 없나요?\n네이버 커머스 ID 전환 이후, 이전 아이디로 로그인이 불가한가요?\n\n\n\n도움말 닫기"
+    expected_output = [
+        "스마트스토어 로그인ID(매니저)를 추가하거나 변경할 수 없나요?",
+        "네이버 커머스 ID 전환 이후, 이전 아이디로 로그인이 불가한가요?",
+    ]
+    assert extract_related_keywords(sample_input) == expected_output
+    assert extract_related_keywords("답변 본문...") == []
+    assert extract_related_keywords("답변\n관련 도움말/키워드\n\n도움말 닫기") == []
+
+
+def test_clean_answer():
+    """clean_answer: 불필요 정보 및 특수 문자 제거"""
+    sample_input = "가입 서류는 가입 단계에서 업로드 가능하며,\xa0가입 신청 시 서류 준비가 되지 않은 경우\xa0가입 완료 후 [판매자정보\xa0> 심사내역 조회] 메뉴에서 업로드 가능합니다.\n위 도움말이 도움이 되었나요?\n\n\n별점1점\n\n별점2점\n\n별점3점\n\n별점4점\n\n별점5점\n\n\n\n소중한 의견을 남겨주시면 보완하도록 노력하겠습니다.\n\n보내기\n\n\n\n도움말 닫기"
+    expected_output = "가입 서류는 가입 단계에서 업로드 가능하며, 가입 신청 시 서류 준비가 되지 않은 경우 가입 완료 후 [판매자정보 > 심사내역 조회] 메뉴에서 업로드 가능합니다."
+    assert clean_answer(sample_input) == expected_output
+    assert clean_answer("") == ""
+    assert clean_answer("\xa0\u200b") == ""
+    assert clean_answer("테스트\n\n위 도움말이 도움이 되었나요?") == "테스트"
