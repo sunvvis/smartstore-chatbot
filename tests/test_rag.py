@@ -38,24 +38,34 @@ def mock_openai_client():
 
 
 @pytest.fixture
-def rag_system(mock_vector_db, mock_openai_client):
+def mock_memory():
+    """ConversationMemory 모킹"""
+    mock_mem = Mock()
+    mock_mem.get_recent_context.return_value = ""
+    mock_mem.add_turn.return_value = None
+    return mock_mem
+
+
+@pytest.fixture
+def rag_system(mock_vector_db, mock_openai_client, mock_memory):
     """RAG 시스템 인스턴스"""
     with patch("src.rag.OpenAI", return_value=mock_openai_client):
-        rag = SmartStoreRAG("test_api_key", vector_db=mock_vector_db)
+        rag = SmartStoreRAG("test_api_key", vector_db=mock_vector_db, memory=mock_memory)
         return rag
 
 
 class TestSmartStoreRAG:
     """SmartStoreRAG 테스트"""
 
-    def test_init(self, mock_vector_db):
+    def test_init(self, mock_vector_db, mock_memory):
         """초기화 테스트"""
         with patch("src.rag.OpenAI") as mock_openai:
-            rag = SmartStoreRAG("test_key", vector_db=mock_vector_db)
+            rag = SmartStoreRAG("test_key", vector_db=mock_vector_db, memory=mock_memory)
 
             assert rag.model == "gpt-4o-mini"
             assert rag.temperature == 0.1
             assert rag.vector_db == mock_vector_db
+            assert rag.memory == mock_memory
             mock_openai.assert_called_once_with(api_key="test_key")
 
     def test_create_system_prompt(self, rag_system):
@@ -69,12 +79,13 @@ class TestSmartStoreRAG:
     def test_create_user_prompt(self, rag_system):
         """사용자 프롬프트 생성 테스트"""
         sources = [{"question": "Q1", "answer": "A1"}, {"question": "Q2", "answer": "A2"}]
-        prompt = rag_system._create_user_prompt("테스트 질문", sources)
+        prompt = rag_system._create_user_prompt("테스트 질문", sources, "이전 대화 내용")
 
         assert "관련 FAQ:" in prompt
         assert "테스트 질문" in prompt
         assert "Q1" in prompt
         assert "A1" in prompt
+        assert "이전 대화:" in prompt
 
     def test_stream_response_normal(self, rag_system):
         """정상 스트리밍 응답 테스트"""
@@ -88,6 +99,9 @@ class TestSmartStoreRAG:
 
         # 벡터 검색 호출 확인
         rag_system.vector_db.search.assert_called_once()
+        # 메모리 호출 확인
+        rag_system.memory.get_recent_context.assert_called_once()
+        rag_system.memory.add_turn.assert_called_once()
 
     def test_stream_response_no_sources(self, rag_system):
         """관련 소스 없을 때 테스트"""
