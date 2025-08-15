@@ -3,8 +3,9 @@ from typing import List, Dict
 import chromadb
 from chromadb.config import Settings
 from openai import OpenAI
-import os
 import time
+
+from utils import get_api_key
 
 
 class VectorDB:
@@ -177,14 +178,6 @@ class VectorDB:
             return True
         except Exception:
             return False
-
-
-def get_api_key() -> str:
-    """OpenAI API 키 조회"""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY 환경변수 설정 필요")
-    return api_key
 
 
 if __name__ == "__main__":
