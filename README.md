@@ -69,10 +69,10 @@ pip install -r requirements.txt
 
 ### 2. 환경 변수 설정
 
-`export OPENAI_API_KEY="{your_key}"` 명령어로 OpenAI API 키를 설정:
+다음 명령어로 OpenAI API 키를 설정:
 
 ```bash
-OPENAI_API_KEY=your_openai_api_key_here
+export OPENAI_API_KEY="{your_key}"
 ```
 
 ### 3. 데이터 전처리 및 벡터 DB 구축
