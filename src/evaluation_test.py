@@ -1,12 +1,6 @@
-"""RAG 파이프라인 실제 평가 테스트"""
-
-import sys
-
-sys.path.append("src")
-
-from src.rag_evaluator import RAGEvaluator
-from src.rag import SmartStoreRAG
-from src.utils import get_api_key
+from .rag_evaluator import RAGEvaluator
+from .rag import SmartStoreRAG
+from .utils import get_api_key
 from openai import OpenAI
 
 
