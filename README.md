@@ -69,7 +69,7 @@ pip install -r requirements.txt
 
 ### 2. 환경 변수 설정
 
-`.env` 파일을 생성하고 OpenAI API 키를 설정:
+`export OPENAI_API_KEY="{your_key}"` 명령어로 OpenAI API 키를 설정:
 
 ```bash
 OPENAI_API_KEY=your_openai_api_key_here
