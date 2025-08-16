@@ -11,6 +11,11 @@ def load_faq_data(file_path: str) -> List[Dict[str, str]]:
     return [{"question": k, "answer": v} for k, v in data.items()]
 
 
+def clean_question(question: str) -> str:
+    """질문 앞의 별모양 기호 제거"""
+    return re.sub(r"^[★]+\s*", "", question).strip()
+
+
 def extract_category(question: str) -> tuple[list[str], str]:
     """질문에서 카테고리 추출"""
     categories = []
@@ -45,6 +50,7 @@ def preprocess_faq(input_path: str, output_path: str) -> None:
     df = pd.DataFrame(data)
 
     # 전처리 적용
+    df["question"] = df["question"].apply(clean_question)
     df[["category", "question"]] = df["question"].apply(lambda x: pd.Series(extract_category(x)))
     df["related_keywords"] = df["answer"].apply(extract_related_keywords)
     df["answer"] = df["answer"].apply(clean_answer)
