@@ -73,6 +73,7 @@ pip install -r requirements.txt
 
 ```bash
 export OPENAI_API_KEY="{your_key}"
+source ~/.bashrc
 ```
 
 ### 3. 데이터 전처리 및 벡터 DB 구축
