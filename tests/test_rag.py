@@ -153,12 +153,25 @@ class TestSmartStoreRAG:
             }
         ]
 
-        # LLM 모킹
-        mock_choice = Mock()
-        mock_choice.message.content = "상품 수정 방법\n상품 삭제 방법"
-        mock_response = Mock()
-        mock_response.choices = [mock_choice]
-        rag_system.openai_client.chat.completions.create.return_value = mock_response
+        # LLM 모킹 - 스트리밍과 일반 호출 구분
+        def mock_llm_call(*args, **kwargs):
+            if kwargs.get("stream"):
+                # 스트리밍 응답
+                chunk = Mock()
+                chunk.choices = [Mock()]
+                chunk.choices[0].delta.content = "답변"
+                return [chunk]
+            else:
+                # 후속 질문 생성
+                choice = Mock()
+                choice.message.content = (
+                    "상품 수정에 대해 더 자세히 안내해드릴까요?\n상품 삭제에 대해 더 자세히 안내해드릴까요?"
+                )
+                response = Mock()
+                response.choices = [choice]
+                return response
+
+        rag_system.openai_client.chat.completions.create.side_effect = mock_llm_call
 
         chunks = list(rag_system.stream_response("상품 등록 방법"))
 
@@ -174,12 +187,25 @@ class TestSmartStoreRAG:
             {"question": "배송 조회", "answer": "...", "similarity_score": 0.6},
         ]
 
-        # LLM 모킹
-        mock_choice = Mock()
-        mock_choice.message.content = "주문 관리 방법\n배송 조회 방법"
-        mock_response = Mock()
-        mock_response.choices = [mock_choice]
-        rag_system.openai_client.chat.completions.create.return_value = mock_response
+        # LLM 모킹 - 스트리밍과 일반 호출 구분
+        def mock_llm_call(*args, **kwargs):
+            if kwargs.get("stream"):
+                # 스트리밍 응답
+                chunk = Mock()
+                chunk.choices = [Mock()]
+                chunk.choices[0].delta.content = "답변"
+                return [chunk]
+            else:
+                # 후속 질문 생성
+                choice = Mock()
+                choice.message.content = (
+                    "주문 관리에 대해 더 자세히 안내해드릴까요?\n배송 조회에 대해 더 자세히 안내해드릴까요?"
+                )
+                response = Mock()
+                response.choices = [choice]
+                return response
+
+        rag_system.openai_client.chat.completions.create.side_effect = mock_llm_call
 
         chunks = list(rag_system.stream_response("주문 방법"))
 
