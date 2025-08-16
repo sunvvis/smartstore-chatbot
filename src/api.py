@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict
+import uuid
 
 from .rag import SmartStoreRAG
 from .utils import get_api_key
@@ -9,6 +10,7 @@ from .utils import get_api_key
 
 class ChatRequest(BaseModel):
     question: str
+    session_id: Optional[str] = None
     top_k: Optional[int] = 3
     similarity_threshold: Optional[float] = 0.1
 
@@ -20,11 +22,15 @@ class ChatApp:
 
         # RAG 시스템 초기화
         try:
-            api_key = get_api_key()
-            self.rag = SmartStoreRAG(api_key)
+            self.api_key = get_api_key()
+            self.rag = SmartStoreRAG(self.api_key)
         except Exception as e:
             print(f"RAG 시스템 초기화 실패: {e}")
             self.rag = None
+            self.api_key = None
+
+        # 세션별 RAG 인스턴스 관리
+        self.sessions: Dict[str, SmartStoreRAG] = {}
 
     def _setup_routes(self):
         """필수 API 라우트 설정"""
@@ -39,23 +45,37 @@ class ChatApp:
 
         @self.app.post("/chat")
         async def chat(request: ChatRequest):
-            if not self.rag:
+            if not self.api_key:
                 raise HTTPException(status_code=500, detail="RAG 시스템이 초기화되지 않았습니다.")
 
+            # 세션 ID 처리
+            session_id = request.session_id or str(uuid.uuid4())
+
+            # 세션별 RAG 인스턴스 가져오기 또는 생성
+            if session_id not in self.sessions:
+                self.sessions[session_id] = SmartStoreRAG(self.api_key)
+
+            session_rag = self.sessions[session_id]
+
             async def generate():
-                # 초기 헤더 출력
+                import asyncio
+
+                # 깔끔한 출력을 위해 세션 ID 표시 제거
                 yield f"유저: {request.question}\n챗봇: "
+                await asyncio.sleep(0.01)
 
                 follow_up = []
 
-                for chunk in self.rag.stream_response(
+                for chunk in session_rag.stream_response(
                     question=request.question, top_k=request.top_k, similarity_threshold=request.similarity_threshold
                 ):
                     # 답변 청크 즉시 스트리밍
                     if chunk["type"] == "answer_chunk":
                         yield chunk["content"]
+                        await asyncio.sleep(0.01)  # 즉시 플러시
                     elif chunk["type"] == "answer":
                         yield chunk["content"]
+                        await asyncio.sleep(0.01)
                     elif chunk["type"] == "follow_up_questions":
                         follow_up = chunk["data"]["questions"]
 
@@ -63,8 +83,13 @@ class ChatApp:
                 if follow_up:
                     for q in follow_up:
                         yield f"\n챗봇:   - {q}"
+                        await asyncio.sleep(0.01)
 
-            return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
+            return StreamingResponse(
+                generate(),
+                media_type="text/plain; charset=utf-8",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+            )
 
 
 chat_app = ChatApp()
