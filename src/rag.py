@@ -36,9 +36,14 @@ class SmartStoreRAG:
 
     def _create_system_prompt(self) -> str:
         """시스템 프롬프트"""
-        return """당신은 네이버 스마트스토어 전문 상담사입니다.
-제공된 FAQ 정보를 바탕으로 정확하고 친절하게 답변해주세요.
-사용자가 이해하기 쉽도록 명확하고 구체적으로 설명해주세요."""
+        return """당신은 네이버 스마트스토어 FAQ 전문 상담사입니다.
+
+답변 규칙:
+1. 제공된 FAQ 정보만을 바탕으로 정확하게 답변하세요
+2. 핵심 내용만 포함하고 불필요한 부연설명은 피하세요
+3. "궁금한 점이 있으시면 언제든 물어보세요" 같은 일반적인 마무리 멘트는 사용하지 마세요
+
+답변 형식: 간결하고 직접적인 정보 전달에 집중하세요."""
 
     def _create_user_prompt(self, question: str, sources: List[Dict], conversation_context: str = "") -> str:
         """사용자 프롬프트"""
@@ -63,8 +68,8 @@ class SmartStoreRAG:
             refined = self._refine_questions_with_llm(keyword_candidates[:3])
             return {"questions": refined, "source": "related_keywords"}
 
-        # 2. 유사도 기반 제안
-        similarity_candidates = [r["question"] for r in all_results[:2] if r.get("question")]
+        # 2. 유사도 2위~의 질문 기반 제안 (1위 제외)
+        similarity_candidates = [r["question"] for r in all_results[1:] if r.get("question")]
         if similarity_candidates:
             refined = self._refine_questions_with_llm(similarity_candidates)
             return {"questions": refined, "source": "similarity"}
@@ -76,10 +81,18 @@ class SmartStoreRAG:
         if not raw_questions:
             return []
 
-        prompt = f"""스마트스토어 질문을 자연스럽게 정제:
+        prompt = f"""다음 스마트스토어 관련 질문들을 사용자가 궁금해할만한 자연스러운 후속 질문으로 변환하세요:
 {", ".join(raw_questions)}
 
-요구: 자연스럽고 완전한 질문, 중복 제거, 각 줄에 한 개씩"""
+요구사항:
+1. "~해드릴까요?", "~가 필요하신가요?", "~궁금하신가요?" 등의 제안형 형태의 질문으로 변환
+2. 사용자 입장에서 실제로 궁금해할만한 내용으로 구성
+
+예시:
+입력: "판매회원 등록 서류", "등록 심사 기간"
+출력:
+등록에 필요한 서류 안내해드릴까요?
+등록 절차는 얼마나 오래 걸리는지 안내가 필요하신가요?"""
 
         try:
             response = self.openai_client.chat.completions.create(
@@ -87,11 +100,11 @@ class SmartStoreRAG:
             )
 
             result = response.choices[0].message.content.strip()
-            questions = [q.lstrip("0123456789.- •").strip() for q in result.split("\n") if q.strip()]
-            return [q for q in questions if len(q) > 5][:3]
+            questions = [q.strip() for q in result.split("\n") if q.strip() and "?" in q]
+            return [q for q in questions if len(q) > 10][:3]
 
         except Exception:
-            return raw_questions[:2]
+            return [f"{q}에 대해 더 자세히 안내해드릴까요?" for q in raw_questions[:2]]
 
     def stream_response(self, question: str, top_k: int = 3, similarity_threshold: float = 0.1) -> Iterator[Dict]:
         """스트리밍 응답 생성"""
